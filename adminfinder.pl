@@ -136,7 +136,7 @@ sub print_title {
     print "#################################################\n";
     print color("yellow");
     print "#            Admin Panel Sniffer                #\n";
-    print "#            Written by Nightmare               #\n";
+    print "#            Written by Zyantos                 #\n";
     print color("magenta");
     print "#################################################\n";
     print color("reset");
