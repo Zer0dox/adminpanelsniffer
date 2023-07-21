@@ -1,88 +1,76 @@
 use strict;
 use warnings;
 use 5.010;
-use HTTP::Tiny;
-use Switch;
+use LWP::UserAgent;
 use Term::ANSIColor;
 
 my ($target, $wordlist) = @ARGV;
-my ($url) = $target =~ m|^( .*?\. [^/]+ )|x;
-my $Client = HTTP::Tiny->new();
+my $ua = LWP::UserAgent->new();
 my @found = ();
+my %status_colors = (
+    200 => "bold green",
+    403 => "bold red",
+    500 => "red",
+    401 => "yellow",
+    404 => "red"
+);
 
 system("clear");
-title();
+print_title();
 
-if (not defined $target) {
-	print "USAGE: \n\tperl adminfinder.pl {TARGET_URI} {WORDLIST}\n\n";
-	exit;
+# Check if both target and wordlist are provided
+unless (defined $target and defined $wordlist) {
+    print "USAGE: \n\tperl adminfinder.pl {TARGET_URI} {WORDLIST}\n\n";
+    exit;
 }
 
-if(not defined $wordlist) {
-	$wordlist = "wordlist.txt";
+open my $wordlist_file, '<', $wordlist or die("Error: Unable to open the file $wordlist");
+
+# Loop through each line in the wordlist
+while (my $line = <$wordlist_file>) {
+    chomp $line;
+    my $url = construct_url($target, $line);
+    my $status_code = get_url_status($ua, $url);
+    print_status($url, $status_code);
+    push(@found, $url) if is_valid_status($status_code);
 }
 
-open my $info, $wordlist or die("Error: Unable to open the file " .$wordlist);
-
-
-while(my $line = <$info>) {
-	$line =~ s/\R//g;
-	my $url2 = "http://" . $url . "/" . $line;
-	my $response = $Client->get($url2);
-	switch($response->{status}) {
-		case 200 {
-			push(@found, $url2);
-			print color("bold green");
-			print $url2 . " is valid!\n";
-			print color("reset");
-		}
-		case 403 {
-			push(@found, $url2);
-			print color("bold red");
-			print $url2 . " is forbidden!\n";
-			print color("reset");
-		}
-		case 500 {
-			print color("red");
-			print $url . " responded with internal server error!\n";
-			print color("reset");
-		}
-		case 401 {
-			push(@found, $url2);
-			print color("yellow");
-			print $url2 . " is asking for authentication!\n";
-			print color("reset");
-		}
-		case 404 {
-			print color("red");
-			print $url2 . " not found!\n";
-			print color("reset");
-		}
-		else {
-			print color("yellow");
-			print $url2 . " responded with status code: " . $response->{status} . "\n";
-			print color("reset");
-		}
-	}
-}
+close $wordlist_file;
 
 print "Valid Pages\n------------------------------------------\n";
-while(my $entry = <@found>) {
+print join("\n", @found) . "\n";
 
-	print $entry . "\n";
-
+sub construct_url {
+    my ($base_url, $path) = @_;
+    return "http://$base_url/$path";
 }
 
+sub get_url_status {
+    my ($ua, $url) = @_;
+    my $response = $ua->get($url);
+    return $response->code;
+}
 
+sub print_status {
+    my ($url, $status_code) = @_;
+    my $color = $status_colors{$status_code} || "yellow";
+    print color($color);
+    print "$url responded with status code: $status_code\n";
+    print color("reset");
+}
 
-sub title {
-	print color("magenta");
-	print "#################################################\n";
-	print color("yellow");
-	print "#            Admin Panel Sniffer                #\n";
-	print "#            Written by Nightmare               #\n";
-	print color("magenta");
-	print "#################################################\n";
-	print color("reset");
-	return;
+sub is_valid_status {
+    my $status_code = shift;
+    return $status_code == 200 || $status_code == 403 || $status_code == 401;
+}
+
+sub print_title {
+    print color("magenta");
+    print "#################################################\n";
+    print color("yellow");
+    print "#            Admin Panel Sniffer                #\n";
+    print "#            Written by Nightmare               #\n";
+    print color("magenta");
+    print "#################################################\n";
+    print color("reset");
 }
